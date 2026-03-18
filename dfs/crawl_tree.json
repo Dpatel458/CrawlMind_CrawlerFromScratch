@@ -1,0 +1,95 @@
+{
+  "url": "https://www.tensorflow.org/tutorials",
+  "depth": 0,
+  "status": "ok",
+  "children": [
+    {
+      "url": "https://www.tensorflow.org",
+      "depth": 1,
+      "status": "ok",
+      "children": [
+        {
+          "url": "https://www.tensorflow.org/install",
+          "depth": 2,
+          "status": "ok",
+          "children": [],
+          "sample": "TensorFlow Install Stay organized with collections Save and categorize content based on your preferences. Install TensorFlow 2 TensorFlow is tested and supported on the following 64-bit systems: Pytho"
+        },
+        {
+          "url": "https://www.tensorflow.org/js",
+          "depth": 2,
+          "status": "ok",
+          "children": [],
+          "sample": "New to machine learning? Watch a video course to get practical working knowledge of ML using web technologies View series TensorFlow Learn For JavaScript Stay organized with collections Save and categ"
+        },
+        {
+          "url": "https://www.tensorflow.org/guide/data",
+          "depth": 2,
+          "status": "ok",
+          "children": [],
+          "sample": "TensorFlow Learn TensorFlow Core Guide tf.data: Build TensorFlow input pipelines Stay organized with collections Save and categorize content based on your preferences. View on TensorFlow.org Run in Go"
+        }
+      ],
+      "sample": "TensorFlow Stay organized with collections Save and categorize content based on your preferences. An end-to-end platform for machine learning Install TensorFlow Get started with TensorFlow TensorFlow "
+    },
+    {
+      "url": "https://www.tensorflow.org/learn",
+      "depth": 1,
+      "status": "ok",
+      "children": [
+        {
+          "url": "https://www.tensorflow.org/tfx",
+          "depth": 2,
+          "status": "ok",
+          "children": [],
+          "sample": "TensorFlow Learn For Production Stay organized with collections Save and categorize content based on your preferences. TFX is an end-to-end platform for deploying production ML pipelines When you're r"
+        },
+        {
+          "url": "https://www.tensorflow.org/datasets",
+          "depth": 2,
+          "status": "ok",
+          "children": [],
+          "sample": "TFDS now supports the Croissant \ud83e\udd50 format ! Read the documentation to know more. TensorFlow Resources Datasets Stay organized with collections Save and categorize content based on your preferences. Ten"
+        },
+        {
+          "url": "https://www.tensorflow.org/guide/keras/preprocessing_layers",
+          "depth": 2,
+          "status": "ok",
+          "children": [],
+          "sample": "TensorFlow Learn TensorFlow Core Guide Working with preprocessing layers Stay organized with collections Save and categorize content based on your preferences. Authors: Francois Chollet, Mark Omernick"
+        }
+      ],
+      "sample": "TensorFlow Learn Stay organized with collections Save and categorize content based on your preferences. Introduction to TensorFlow TensorFlow makes it easy for beginners and experts to create machine "
+    },
+    {
+      "url": "https://www.tensorflow.org/guide/keras/overview",
+      "depth": 1,
+      "status": "ok",
+      "children": [
+        {
+          "url": "https://www.tensorflow.org/guide",
+          "depth": 2,
+          "status": "ok",
+          "children": [],
+          "sample": "TensorFlow Learn TensorFlow Core Guide Stay organized with collections Save and categorize content based on your preferences. TensorFlow 2 focuses on simplicity and ease of use, with updates like eage"
+        },
+        {
+          "url": "https://www.tensorflow.org/guide/core",
+          "depth": 2,
+          "status": "ok",
+          "children": [],
+          "sample": "TensorFlow Learn TensorFlow Core Guide TensorFlow Core APIs overview Stay organized with collections Save and categorize content based on your preferences. The TensorFlow Core APIs provide a set of co"
+        },
+        {
+          "url": "https://www.tensorflow.org/guide/keras/sequential_model",
+          "depth": 2,
+          "status": "ok",
+          "children": [],
+          "sample": "TensorFlow Learn TensorFlow Core Guide The Sequential model Stay organized with collections Save and categorize content based on your preferences. Author: fchollet View on TensorFlow.org Run in Google"
+        }
+      ],
+      "sample": "TensorFlow Learn TensorFlow Core Guide Keras: The high-level API for TensorFlow Stay organized with collections Save and categorize content based on your preferences. Keras is the high-level API of th"
+    }
+  ],
+  "sample": "TensorFlow Learn TensorFlow Core Stay organized with collections Save and categorize content based on your preferences. The TensorFlow tutorials are written as Jupyter notebooks and run directly in Go"
+}

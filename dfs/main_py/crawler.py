@@ -1,0 +1,305 @@
+import requests
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin, urlparse, urlunparse
+
+from filters import (FilterChain, DomainFilter, URLPatternFilter,
+                     ContentTypeFilter, ExternalLinkFilter, SocialMediaFilter)
+from outputs import PageResult, OutputManager
+
+
+def crawl(
+    start_url,
+
+    # ── output ─────────────────────────────────────────────────
+    output_formats=None,        # list of str names or pre-configured BaseOutput instances
+                                # e.g. ["markdown", "metadata"]
+                                # e.g. [MarkdownOutput(strip_links=True), MetadataOutput()]
+                                # e.g. ["json"]  → all formats, packed into to_json()
+                                # None / []      → crawl only, no content stored
+
+    # ── crawl controls ─────────────────────────────────────────
+    max_depth=None,             # None = unlimited
+    branching_factor=None,      # None = follow all links per page
+    max_pages=None,             # None = no budget
+
+    # ── content controls ───────────────────────────────────────
+    score_threshold=None,       # None = off  |  e.g. 0.3
+    word_count_threshold=None,  # None = off  |  e.g. 50
+
+    # ── filter toggles ─────────────────────────────────────────
+    url_pattern=None,           # None = off  |  e.g. "https://example.com/docs"
+    exclude_external=False,
+    exclude_social_media=False,
+    extra_social_domains=None,
+
+    # ── debug ──────────────────────────────────────────────────
+    debug=False,
+):
+    """
+    Single entry point for the DFS crawler.
+
+    Parameters
+    ----------
+    start_url             : str
+    output_formats        : list[str | BaseOutput]  (None = crawl only)
+    max_depth             : int    (None = unlimited)
+    branching_factor      : int    (None = all links)
+    max_pages             : int    (None = unlimited)
+    score_threshold       : float  (None = off)
+    word_count_threshold  : int    (None = off)
+    url_pattern           : str    (None = off)
+    exclude_external      : bool
+    exclude_social_media  : bool
+    extra_social_domains  : list[str]
+    debug                 : bool
+
+    Returns
+    -------
+    list[PageResult]
+    """
+
+    # ── output manager ────────────────────────────────────────────────────────
+    manager = OutputManager(output_formats or [])
+
+    # ── filter chain ─────────────────────────────────────────────────────────
+    active_filters = [DomainFilter(start_url)]
+
+    if url_pattern is not None:
+        active_filters.append(URLPatternFilter(url_pattern))
+    if exclude_external:
+        active_filters.append(ExternalLinkFilter(start_url))
+    if exclude_social_media:
+        active_filters.append(SocialMediaFilter(extra_domains=extra_social_domains))
+
+    active_filters.append(ContentTypeFilter())
+
+    filter_chain = FilterChain(active_filters, debug=debug)
+
+    # ── crawl state ───────────────────────────────────────────────────────────
+    visited    = set()
+    page_count = [0]
+    results    = []
+
+    # ── helpers ───────────────────────────────────────────────────────────────
+
+    def normalize_and_filter_url(current_url, href):
+        absolute_url = urljoin(current_url, href)
+        parsed       = urlparse(absolute_url)
+        parsed       = parsed._replace(fragment="", query="")
+        parsed       = parsed._replace(path=parsed.path.rstrip("/"))
+        clean_url    = urlunparse(parsed)
+        return clean_url if filter_chain.allow(clean_url) else None
+
+    def score_link(href, anchor_text):
+        score      = 0.0
+        base_kw    = set(urlparse(start_url).path.strip("/").split("/")) - {""}
+        link_parts = set(urlparse(href).path.strip("/").split("/"))      - {""}
+        overlap    = len(base_kw & link_parts)
+        score     += min(overlap / max(len(base_kw), 1), 1.0) * 0.5
+        score     += 0.2 - min(len(link_parts) * 0.05, 0.2)
+        if len(anchor_text.strip()) > 3:
+            score += 0.3
+        return round(min(score, 1.0), 3)
+
+    # ── recursive worker ──────────────────────────────────────────────────────
+
+    def _dfs_crawl(url, depth):
+
+        url = url.rstrip("/")
+
+        if max_depth is not None and depth > max_depth:
+            return
+        if url in visited:
+            return
+        if max_pages is not None and page_count[0] >= max_pages:
+            print(f"[max_pages={max_pages} reached — stopping]")
+            return
+
+        indent   = "  " * depth
+        page_num = f"[{page_count[0]+1}" + (f"/{max_pages}]" if max_pages else "]")
+        print(f"\n{indent}Visiting {page_num}: {url}")
+
+        visited.add(url)
+        page_count[0] += 1
+
+        result = PageResult(url=url, depth=depth, status_code=0)
+
+        try:
+            response           = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=5)
+            result.status_code = response.status_code
+
+            # stage 2: content-type gate (uses real response, no extra request)
+            if not filter_chain.allow_response(url, response):
+                result.error = f"Content-Type blocked: {response.headers.get('Content-Type', '?')}"
+                print(f"{indent}Skipped — {result.error}")
+                results.append(result)
+                return
+
+            # ── parse — two soups, parsed once ────────────────────────────
+            raw_soup = BeautifulSoup(response.text, "html.parser")
+            soup     = BeautifulSoup(response.text, "html.parser")
+
+            # Pass 1: standard semantic noise tags
+            NOISE_TAGS = [
+                "script", "style",
+                "nav", "header", "footer", "aside",
+                "form", "iframe", "noscript",
+            ]
+            for tag in soup(NOISE_TAGS):
+                tag.decompose()
+
+            # Pass 2: custom elements and class/id patterns
+            # Catches web components like <devsite-header>, <site-nav>
+            # and class names like "cookie-banner", "sidebar", "toc"
+            #
+            # IMPORTANT: snapshot with list() first — decomposing a parent
+            # also destroys its children in the tree, so iterating live
+            # causes tag.name / tag.get() to return None on already-dead nodes.
+            NOISE_PATTERNS = [
+                "header", "footer", "nav", "cookie", "banner",
+                "breadcrumb", "sidebar", "toc", "toolbar", "menu",
+                "announcement", "notification", "skip", "search",
+                "devsite-band", "devsite-collection", "devsite-rating",
+                "devsite-thumb", "devsite-page-rating", "devsite-bookmark",
+            ]
+            for tag in list(soup.find_all(True)):
+                if tag.parent is None:      # already decomposed as child of earlier tag
+                    continue
+                combined = " ".join([
+                    tag.name or "",
+                    " ".join(tag.get("class") or []),
+                    tag.get("id") or "",
+                ]).lower()
+                if any(p in combined for p in NOISE_PATTERNS):
+                    tag.decompose()
+
+            # Content scoping: prefer the most specific content container
+            # Priority: <main> → <article> → role=main → <body> → full soup
+            content = (
+                soup.find("main")
+                or soup.find("article")
+                or soup.find(attrs={"role": "main"})
+                or soup.find("body")
+                or soup
+            )
+
+            # ── word count gate ────────────────────────────────────────────
+            text = " ".join(content.get_text(" ", strip=True).split())
+            if word_count_threshold is not None:
+                wc = len(text.split())
+                if wc < word_count_threshold:
+                    result.error = f"word_count={wc} < threshold={word_count_threshold}"
+                    print(f"{indent}Skipped — {result.error}")
+                    results.append(result)
+                    return
+
+            print(f"{indent}({len(text.split())} words): {text[:200]}...")
+
+            # ── extract all requested outputs ──────────────────────────────
+            # pass content (scoped) as the clean soup so all extractors
+            # that use needs_clean=True operate on main-content only
+            manager.extract_all(result, content, raw_soup, response)
+            results.append(result)
+
+            # ── collect next links ─────────────────────────────────────────
+            clean_links = []
+            seen_links  = set()
+
+            for tag in raw_soup.find_all("a", href=True):
+                clean_url = normalize_and_filter_url(url, tag["href"])
+                if not clean_url:
+                    continue
+                if clean_url in seen_links or clean_url in visited:
+                    continue
+                if score_threshold is not None:
+                    s = score_link(clean_url, tag.get_text())
+                    if s < score_threshold:
+                        print(f"{indent}  [score={s:.2f} < {score_threshold}] dropped: {clean_url}")
+                        continue
+                seen_links.add(clean_url)
+                clean_links.append(clean_url)
+                if branching_factor is not None and len(clean_links) >= branching_factor:
+                    break
+
+            for cl in clean_links:
+                print(f"{indent}  -> {cl}")
+
+            for cl in clean_links:
+                _dfs_crawl(cl, depth + 1)
+
+        except Exception as e:
+            result.error = str(e)
+            print(f"{indent}Error: {e}")
+            results.append(result)
+
+    # ── kick off ──────────────────────────────────────────────────────────────
+    _dfs_crawl(start_url, depth=0)
+    successful = len([r for r in results if not r.error])
+    print(f"\nDone — {page_count[0]} visited, {successful} successful.")
+
+    return results
+
+
+# ── Usage ──────────────────────────────────────────────────────────────────────
+
+# if __name__ == "__main__":
+
+#     from outputs import MarkdownOutput, MetadataOutput, LinksOutput
+
+#     # 1. crawl only
+#     crawl("https://www.tensorflow.org/tutorials")
+
+#     # 2. string names — quick and simple
+#     results = crawl(
+#         start_url      = "https://www.tensorflow.org/tutorials",
+#         output_formats = ["markdown", "metadata", "links"],
+#         max_depth      = 1,
+#         max_pages      = 5,
+#     )
+
+#     # 3. pre-configured instances — full control over each extractor
+#     results = crawl(
+#         start_url      = "https://www.tensorflow.org/tutorials",
+#         output_formats = [
+#             MarkdownOutput(heading_style="ATX", strip_links=True),
+#             MetadataOutput(),
+#             LinksOutput(include_external=False),
+#         ],
+#         max_depth      = 1,
+#         max_pages      = 5,
+#     )
+
+#     # 4. json — all formats, one serialisable object per page
+#     results = crawl(
+#         start_url      = "https://www.tensorflow.org/tutorials",
+#         output_formats = ["json"],
+#         max_depth      = 1,
+#         max_pages      = 3,
+#     )
+#     for r in results:
+#         print(r.to_json())
+
+#     # 5. fully controlled
+#     results = crawl(
+#         start_url            = "https://www.tensorflow.org/tutorials",
+#         output_formats       = ["cleaned_html", "markdown", "metadata", "links"],
+#         max_depth            = 2,
+#         branching_factor     = 3,
+#         max_pages            = 10,
+#         score_threshold      = 0.3,
+#         word_count_threshold = 50,
+#         url_pattern          = "https://www.tensorflow.org/tutorials",
+#         exclude_external     = True,
+#         exclude_social_media = True,
+#         debug                = False,
+#     )
+#     for r in results:
+#         print(f"\n{'='*60}")
+#         print(f"URL:    {r.url}  |  depth={r.depth}  |  status={r.status_code}")
+#         if r.metadata:
+#             print(f"Title:  {r.metadata['title']}")
+#             print(f"Words:  {r.metadata['word_count']}")
+#         if r.links:
+#             print(f"Links:  {len(r.links)} found")
+#         if r.markdown:
+#             print(f"MD preview:\n{r.markdown[:400]}")

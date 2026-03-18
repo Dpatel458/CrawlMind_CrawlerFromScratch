@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Your Crawler vs Crawl4AI</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #060d18;
+  --surface: #0c1624;
+  --surface2: #111e30;
+  --border: #1a2e48;
+  --text: #d4e4f7;
+  --muted: #4a6480;
+  --yes: #10b981;
+  --yes-bg: #022c22;
+  --partial: #f59e0b;
+  --partial-bg: #1c1003;
+  --no: #ef4444;
+  --no-bg: #2d0a0a;
+  --accent: #3b82f6;
+  --accent-bg: #0f2040;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  font-size: 13px;
+  min-height: 100vh;
+  padding: 28px 24px 60px;
+}
+
+header {
+  margin-bottom: 28px;
+}
+header .tag {
+  font-size: 10px;
+  color: var(--accent);
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+header h1 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #e8f2ff;
+}
+header p {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* Summary pills */
+.summary {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+.pill {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pill-yes    { background: var(--yes-bg);     border-color: var(--yes);     color: var(--yes);     }
+.pill-partial{ background: var(--partial-bg); border-color: var(--partial); color: var(--partial); }
+.pill-no     { background: var(--no-bg);      border-color: var(--no);      color: var(--no);      }
+
+/* Section */
+.section {
+  margin-bottom: 32px;
+}
+.section-title {
+  font-size: 10px;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+}
+
+/* Rows */
+.row {
+  display: grid;
+  grid-template-columns: 28px 200px 1fr 1fr;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.row:hover { border-color: #2a4060; }
+
+.badge-cell {
+  display: flex; align-items: center; justify-content: center;
+  padding: 12px 0;
+}
+.badge {
+  width: 10px; height: 10px; border-radius: 50%;
+}
+.badge.yes     { background: var(--yes);     box-shadow: 0 0 6px var(--yes); }
+.badge.partial { background: var(--partial); box-shadow: 0 0 6px var(--partial); }
+.badge.no      { background: var(--no);      box-shadow: 0 0 6px var(--no); }
+
+.feature-cell {
+  padding: 12px 10px 12px 4px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-right: 1px solid var(--border);
+}
+.feature-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #c8ddf5;
+}
+.feature-param {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 2px;
+  font-style: italic;
+}
+
+.yours-cell, .theirs-cell {
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  font-size: 11px;
+  line-height: 1.55;
+}
+.yours-cell { border-right: 1px solid var(--border); }
+
+.status-tag {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+.st-yes     { background: var(--yes-bg);     color: var(--yes);     border: 1px solid var(--yes);     }
+.st-partial { background: var(--partial-bg); color: var(--partial); border: 1px solid var(--partial); }
+.st-no      { background: var(--no-bg);      color: var(--no);      border: 1px solid var(--no);      }
+
+.desc { color: var(--muted); font-size: 11px; }
+.code {
+  background: #0a1828;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 10px;
+  color: #7dd3fc;
+  display: inline-block;
+  margin-top: 3px;
+}
+
+/* Column headers */
+.col-header {
+  display: grid;
+  grid-template-columns: 28px 200px 1fr 1fr;
+  gap: 0;
+  margin-bottom: 6px;
+  padding: 0 0 4px;
+}
+.col-header span {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  color: var(--muted);
+  padding: 0 14px;
+}
+.col-header span:nth-child(2) { padding-left: 4px; }
+
+/* Legend */
+.legend {
+  display: flex; gap: 20px; margin-bottom: 24px; flex-wrap: wrap;
+}
+.legend-item { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="tag">Feature Audit</div>
+  <h1>Your Crawler vs Crawl4AI</h1>
+  <p>Code-level comparison — what you have, what's partial, what's missing</p>
+</header>
+
+<div class="summary" id="summary"></div>
+
+<div class="legend">
+  <div class="legend-item"><span class="badge yes" style="width:10px;height:10px;border-radius:50%;display:inline-block"></span> Implemented</div>
+  <div class="legend-item"><span class="badge partial" style="width:10px;height:10px;border-radius:50%;display:inline-block"></span> Partial / Different approach</div>
+  <div class="legend-item"><span class="badge no" style="width:10px;height:10px;border-radius:50%;display:inline-block"></span> Not implemented</div>
+</div>
+
+<div id="app"></div>
+
+<script>
+const data = [
+  {
+    section: "Crawl Strategy",
+    rows: [
+      {
+        feature: "DFS Crawling",
+        param: "DFSDeepCrawlStrategy",
+        status: "yes",
+        yours: { tag: "yes", text: "Full recursive DFS via <code>dfs_crawl()</code> with depth tracking and visited set." },
+        theirs: { text: "Built-in <code>DFSDeepCrawlStrategy</code> class, plug-and-play." }
+      },
+      {
+        feature: "BFS Crawling",
+        param: "BFSDeepCrawlStrategy",
+        status: "no",
+        yours: { tag: "no", text: "Not implemented. Your recursion is DFS only." },
+        theirs: { text: "Separate <code>BFSDeepCrawlStrategy</code> — explores level-by-level." }
+      },
+      {
+        feature: "Max Depth",
+        param: "max_depth",
+        status: "yes",
+        yours: { tag: "yes", text: "<code>max_depth</code> param in <code>dfs_crawl()</code>. Currently called with <code>max_depth=2</code>." },
+        theirs: { text: "<code>max_depth=2</code> in strategy constructor." }
+      },
+      {
+        feature: "Max Pages",
+        param: "max_pages",
+        status: "no",
+        yours: { tag: "no", text: "No global page counter. Crawl can exceed intended size if branching is wide." },
+        theirs: { text: "<code>max_pages=30</code> — hard stop after N total pages across the whole crawl." }
+      },
+      {
+        feature: "Branching Factor",
+        param: "max_links (per node)",
+        status: "partial",
+        yours: { tag: "partial", text: "Hardcoded <code>if len(clean_links) == 3: break</code>. Works but not a named parameter." },
+        theirs: { text: "Not a single param — controlled via scorer + <code>score_threshold</code>." }
+      },
+      {
+        feature: "Adaptive Crawling",
+        param: "AdaptiveCrawler",
+        status: "no",
+        yours: { tag: "no", text: "No concept of stopping when 'enough' info is gathered." },
+        theirs: { text: "3-layer intelligence: coverage, consistency, saturation — knows when to stop." }
+      },
+    ]
+  },
+  {
+    section: "URL Filtering",
+    rows: [
+      {
+        feature: "Domain Filter",
+        param: "DomainFilter / include_external",
+        status: "yes",
+        yours: { tag: "yes", text: "<code>DomainFilter</code> class in <code>filters.py</code>. Compares <code>urlparse().netloc</code> exactly." },
+        theirs: { text: "<code>include_external=False</code> on strategy. Same effect." }
+      },
+      {
+        feature: "URL Pattern Filter",
+        param: "URLPatternFilter",
+        status: "yes",
+        yours: { tag: "yes", text: "<code>URLPatternFilter</code> — prefix-based. Restricts to <code>/tutorials</code> subtree." },
+        theirs: { text: "Regex-based URL patterns on the strategy config." }
+      },
+      {
+        feature: "Content-Type Filter",
+        param: "ContentTypeFilter",
+        status: "partial",
+        yours: { tag: "partial", text: "Extension check + HEAD request. <b>Problem:</b> HEAD fires for every URL before crawling — very slow, adds N extra HTTP calls." },
+        theirs: { text: "Checks Content-Type from the actual crawl response — no extra HEAD request." }
+      },
+      {
+        feature: "Score Threshold",
+        param: "score_threshold=0.5",
+        status: "no",
+        yours: { tag: "no", text: "No scoring. All URLs passing filters are treated equally." },
+        theirs: { text: "Each link gets a relevance score (BM25 / heuristic). Only links above threshold are followed." }
+      },
+      {
+        feature: "URL Normalization",
+        param: "fragment + query strip",
+        status: "yes",
+        yours: { tag: "yes", text: "Strips <code>#fragment</code> and <code>?query</code>, strips trailing slash. Prevents duplicate visits." },
+        theirs: { text: "Built-in normalization in the link processor." }
+      },
+      {
+        feature: "Exclude Social Media",
+        param: "exclude_social_media_links",
+        status: "no",
+        yours: { tag: "no", text: "No social domain blocklist (twitter.com, linkedin.com, facebook.com etc.)." },
+        theirs: { text: "<code>exclude_social_media_links=True</code> — built-in blocklist." }
+      },
+    ]
+  },
+  {
+    section: "Content Extraction",
+    rows: [
+      {
+        feature: "Plain Text",
+        param: "result.text",
+        status: "yes",
+        yours: { tag: "yes", text: "Extracted via <code>soup.get_text()</code> or <code>main.get_text()</code>, whitespace-cleaned." },
+        theirs: { text: "<code>result.cleaned_html</code> and <code>result.text</code> fields." }
+      },
+      {
+        feature: "Markdown Output",
+        param: "result.markdown",
+        status: "no",
+        yours: { tag: "no", text: "Text only — no HTML→Markdown conversion." },
+        theirs: { text: "<code>DefaultMarkdownGenerator</code> — full HTML→Markdown with links, headings, code blocks." }
+      },
+      {
+        feature: "Raw HTML Output",
+        param: "result.html",
+        status: "no",
+        yours: { tag: "no", text: "HTML is parsed and discarded — original HTML not stored." },
+        theirs: { text: "<code>result.html</code> — raw page HTML always available." }
+      },
+      {
+        feature: "Links Output",
+        param: "result.links",
+        status: "partial",
+        yours: { tag: "partial", text: "Links used for crawling only. Not stored in output — just printed during run." },
+        theirs: { text: "<code>result.links</code> dict with <code>internal</code> and <code>external</code> lists, each with anchor text + score." }
+      },
+      {
+        feature: "Media Output",
+        param: "result.media",
+        status: "no",
+        yours: { tag: "no", text: "Images, videos, audio completely ignored." },
+        theirs: { text: "<code>result.media</code> — images (src, alt, score), video, audio extracted." }
+      },
+      {
+        feature: "Structured Extraction",
+        param: "CSS / XPath selectors",
+        status: "no",
+        yours: { tag: "no", text: "No targeted extraction. You strip tags globally, not by selector." },
+        theirs: { text: "<code>JsonCssExtractionStrategy</code> — schema-driven CSS/XPath field extraction." }
+      },
+      {
+        feature: "CSS Target Selector",
+        param: "css_selector",
+        status: "no",
+        yours: { tag: "no", text: "You try <code>soup.find('main')</code> as a fallback — not configurable by the caller." },
+        theirs: { text: "<code>css_selector='main.content'</code> in <code>CrawlerRunConfig</code> — scopes extraction to one element." }
+      },
+      {
+        feature: "Word Count Threshold",
+        param: "word_count_threshold",
+        status: "no",
+        yours: { tag: "no", text: "No minimum word count check. Short/empty pages pass through silently." },
+        theirs: { text: "<code>word_count_threshold=10</code> — pages with fewer words are discarded." }
+      },
+      {
+        feature: "Exclude Images from MD",
+        param: "exclude_images",
+        status: "no",
+        yours: { tag: "no", text: "Images ignored entirely (no img tags tracked), but not configurable." },
+        theirs: { text: "<code>exclude_external_images=True</code> in markdown config — strips image tags from output." }
+      },
+      {
+        feature: "Fit Markdown (noise removal)",
+        param: "PruningContentFilter / BM25",
+        status: "no",
+        yours: { tag: "no", text: "You strip nav/footer/script tags — good basic cleaning, but no heuristic scoring." },
+        theirs: { text: "BM25 + pruning filters score every block; low-signal blocks removed from markdown." }
+      },
+    ]
+  },
+  {
+    section: "Infrastructure & Performance",
+    rows: [
+      {
+        feature: "Async / Parallel Crawling",
+        param: "arun_many()",
+        status: "no",
+        yours: { tag: "no", text: "Fully synchronous. One page at a time. Slow for large sites." },
+        theirs: { text: "Async by default (<code>asyncio</code>). <code>arun_many()</code> crawls N pages concurrently." }
+      },
+      {
+        feature: "JavaScript Rendering",
+        param: "BrowserConfig (Playwright)",
+        status: "no",
+        yours: { tag: "no", text: "<code>requests</code> fetches raw HTML only — JS-rendered content invisible." },
+        theirs: { text: "Playwright headless browser — executes JS, handles SPAs, React/Vue apps." }
+      },
+      {
+        feature: "Caching",
+        param: "CacheMode",
+        status: "no",
+        yours: { tag: "no", text: "No caching. Re-crawls same URL every run." },
+        theirs: { text: "4 cache modes: <code>read</code>, <code>write</code>, <code>bypass</code>, <code>disabled</code>." }
+      },
+      {
+        feature: "Robots.txt",
+        param: "",
+        status: "no",
+        yours: { tag: "no", text: "No robots.txt checking." },
+        theirs: { text: "Optional robots.txt compliance." }
+      },
+      {
+        feature: "Rate Limiting / Delay",
+        param: "delay_before_return_html",
+        status: "no",
+        yours: { tag: "no", text: "No delay between requests — may get rate-limited or banned." },
+        theirs: { text: "Configurable delays + memory-adaptive dispatcher for concurrency control." }
+      },
+      {
+        feature: "Error Handling",
+        param: "",
+        status: "partial",
+        yours: { tag: "partial", text: "<code>try/except</code> per page — prints error and continues. No retry logic." },
+        theirs: { text: "Per-result <code>success</code> flag, <code>error_message</code>, retry policies." }
+      },
+      {
+        feature: "Visited Deduplication",
+        param: "",
+        status: "yes",
+        yours: { tag: "yes", text: "Global <code>visited</code> set. Checks before fetch and in link collection." },
+        theirs: { text: "Built-in deduplication in the crawler state." }
+      },
+    ]
+  },
+  {
+    section: "Anti-Bot & Identity",
+    rows: [
+      {
+        feature: "Custom User-Agent",
+        param: "",
+        status: "partial",
+        yours: { tag: "partial", text: "Hardcoded <code>Mozilla/5.0</code> string. Not configurable." },
+        theirs: { text: "Full identity config: UA, headers, cookies, viewport, locale per crawl." }
+      },
+      {
+        feature: "Stealth / Undetected Mode",
+        param: "BrowserConfig(browser_type='undetected')",
+        status: "no",
+        yours: { tag: "no", text: "Plain requests — trivially detectable as a bot." },
+        theirs: { text: "Undetected Chrome mode, bypasses Cloudflare, Akamai, custom bot detection." }
+      },
+      {
+        feature: "Proxy Support",
+        param: "BrowserConfig(proxy=...)",
+        status: "no",
+        yours: { tag: "no", text: "No proxy support." },
+        theirs: { text: "Proxy config with optional rotation." }
+      },
+    ]
+  },
+];
+
+// Count statuses
+const counts = { yes: 0, partial: 0, no: 0 };
+data.forEach(s => s.rows.forEach(r => counts[r.status]++));
+const total = counts.yes + counts.partial + counts.no;
+
+// Summary
+const summaryEl = document.getElementById('summary');
+summaryEl.innerHTML = `
+  <div class="pill pill-yes">✓ ${counts.yes} implemented <span style="opacity:.5;font-weight:400">/ ${total}</span></div>
+  <div class="pill pill-partial">~ ${counts.partial} partial</div>
+  <div class="pill pill-no">✗ ${counts.no} missing</div>
+`;
+
+// Render
+const app = document.getElementById('app');
+data.forEach(section => {
+  const sDiv = document.createElement('div');
+  sDiv.className = 'section';
+  sDiv.innerHTML = `<div class="section-title">${section.section}</div>`;
+
+  const hdr = document.createElement('div');
+  hdr.className = 'col-header';
+  hdr.innerHTML = `<span></span><span>Feature</span><span>Your Crawler</span><span>Crawl4AI</span>`;
+  sDiv.appendChild(hdr);
+
+  section.rows.forEach(row => {
+    const div = document.createElement('div');
+    div.className = 'row';
+    div.innerHTML = `
+      <div class="badge-cell"><div class="badge ${row.status}"></div></div>
+      <div class="feature-cell">
+        <div class="feature-name">${row.feature}</div>
+        ${row.param ? `<div class="feature-param">${row.param}</div>` : ''}
+      </div>
+      <div class="yours-cell">
+        <span class="status-tag st-${row.yours.tag}">${row.yours.tag === 'yes' ? '✓ have it' : row.yours.tag === 'partial' ? '~ partial' : '✗ missing'}</span>
+        <span class="desc">${row.yours.text}</span>
+      </div>
+      <div class="theirs-cell">
+        <span class="desc">${row.theirs.text}</span>
+      </div>
+    `;
+    sDiv.appendChild(div);
+  });
+
+  app.appendChild(sDiv);
+});
+</script>
+</body>
+</html>

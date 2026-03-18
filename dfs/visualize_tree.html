@@ -7,27 +7,24 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  background: #f8fafc;
-  color: #0f172a;
+  background: #08111f;
+  color: #c9d8f0;
   font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
 
-/* Header */
 header {
   padding: 18px 28px 14px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid #1a2e4a;
   display: flex;
   align-items: baseline;
   gap: 16px;
-  background: #ffffff;
 }
-header h1 { font-size: 17px; font-weight: 600; color: #0f172a; }
-header span { font-size: 11px; color: #2563eb; letter-spacing: .12em; text-transform: uppercase; }
+header h1 { font-size: 17px; font-weight: 600; color: #e2eeff; }
+header span { font-size: 11px; color: #3b82f6; letter-spacing: .12em; text-transform: uppercase; }
 
-/* Load area */
 #load-area {
   padding: 40px 28px;
   display: flex;
@@ -35,175 +32,69 @@ header span { font-size: 11px; color: #2563eb; letter-spacing: .12em; text-trans
   align-items: center;
   gap: 16px;
 }
-#load-area p { font-size: 13px; color: #475569; text-align: center; line-height: 1.7; }
+#load-area p { font-size: 13px; color: #64748b; text-align: center; line-height: 1.7; }
 
 label.file-btn {
   display: inline-block;
   padding: 10px 24px;
-  background: #e0ecff;
-  border: 1px solid #2563eb;
+  background: #1e3a5f;
+  border: 1px solid #3b82f6;
   border-radius: 8px;
-  color: #1d4ed8;
+  color: #93c5fd;
   cursor: pointer;
   font-size: 13px;
-  font-family: inherit;
-  transition: all .15s;
 }
-label.file-btn:hover { background: #2563eb; color: #ffffff; }
+label.file-btn:hover { background: #1d4ed8; color: #fff; }
 
 #file-input { display: none; }
 
-/* Stats */
 #stats {
   display: flex;
   gap: 10px;
   padding: 12px 28px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid #1a2e4a;
   flex-wrap: wrap;
-  background: #ffffff;
 }
 
 .stat {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: #0f1e30;
+  border: 1px solid #1a2e4a;
   border-radius: 7px;
   padding: 7px 14px;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
-.stat-label {
-  font-size: 9px;
-  color: #64748b;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-}
-.stat-val {
-  font-size: 18px;
-  font-weight: 700;
-}
+.stat-label { font-size: 9px; color: #475569; letter-spacing: .1em; text-transform: uppercase; }
+.stat-val { font-size: 18px; font-weight: 700; }
 
-/* Canvas */
 #canvas-wrap {
   flex: 1;
   overflow: auto;
   padding: 30px;
-  background: #f1f5f9;
 }
-
 svg { display: block; }
 
 /* Tooltip */
 #tip {
   position: fixed;
-  pointer-events: none;
-  background: #ffffff;
-  border: 1px solid #cbd5f5;
+  pointer-events: auto; /* <-- changed to allow clicking link */
+  background: #0f1e30;
+  border: 1px solid #1e3a5f;
   border-radius: 8px;
   padding: 10px 14px;
   font-size: 11px;
   max-width: 340px;
   line-height: 1.6;
-  color: #334155;
+  color: #94a3b8;
   display: none;
   z-index: 100;
-  box-shadow: 0 10px 20px rgba(0,0,0,0.08);
 }
-#tip .tip-url {
-  color: #2563eb;
-  font-weight: 600;
-  word-break: break-all;
-  margin-bottom: 4px;
-}
-#tip .tip-sample { color: #64748b; }
+#tip .tip-url { color: #60a5fa; font-weight: 600; word-break: break-all; margin-bottom: 4px; }
+#tip a { color: #3b82f6; text-decoration: underline; }
 
 /* Nodes */
-.node-circle { cursor: pointer; transition: r .15s, filter .15s; }
-.node-circle:hover { filter: brightness(1.05); }
-
-  body {
-    background: #08111f;
-    color: #c9d8f0;
-    font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-  }
-
-  header {
-    padding: 18px 28px 14px;
-    border-bottom: 1px solid #1a2e4a;
-    display: flex;
-    align-items: baseline;
-    gap: 16px;
-  }
-  header h1 { font-size: 17px; font-weight: 600; color: #e2eeff; }
-  header span { font-size: 11px; color: #3b82f6; letter-spacing: .12em; text-transform: uppercase; }
-
-  #load-area {
-    padding: 40px 28px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 16px;
-  }
-  #load-area p { font-size: 13px; color: #64748b; text-align: center; line-height: 1.7; }
-  label.file-btn {
-    display: inline-block;
-    padding: 10px 24px;
-    background: #1e3a5f;
-    border: 1px solid #3b82f6;
-    border-radius: 8px;
-    color: #93c5fd;
-    cursor: pointer;
-    font-size: 13px;
-    font-family: inherit;
-    transition: background .15s;
-  }
-  label.file-btn:hover { background: #1d4ed8; color: #fff; }
-  #file-input { display: none; }
-
-  #stats {
-    display: flex;
-    gap: 10px;
-    padding: 12px 28px;
-    border-bottom: 1px solid #1a2e4a;
-    flex-wrap: wrap;
-  }
-  .stat {
-    background: #0f1e30;
-    border: 1px solid #1a2e4a;
-    border-radius: 7px;
-    padding: 7px 14px;
-  }
-  .stat-label { font-size: 9px; color: #475569; letter-spacing: .1em; text-transform: uppercase; }
-  .stat-val { font-size: 18px; font-weight: 700; }
-
-  #canvas-wrap {
-    flex: 1;
-    overflow: auto;
-    padding: 30px;
-  }
-  svg { display: block; }
-
-  /* Tooltip */
-  #tip {
-    position: fixed;
-    pointer-events: none;
-    background: #0f1e30;
-    border: 1px solid #1e3a5f;
-    border-radius: 8px;
-    padding: 10px 14px;
-    font-size: 11px;
-    max-width: 340px;
-    line-height: 1.6;
-    color: #94a3b8;
-    display: none;
-    z-index: 100;
-  }
-  #tip .tip-url { color: #60a5fa; font-weight: 600; word-break: break-all; margin-bottom: 4px; }
-  #tip .tip-sample { color: #64748b; }
-
-  .node-circle { cursor: pointer; transition: r .15s; }
-  .node-circle:hover { filter: brightness(1.3); }
+.node-circle {
+  cursor: pointer;
+  transition: r .15s, filter .15s, stroke-width .15s;
+}
 </style>
 </head>
 <body>
@@ -216,7 +107,7 @@ svg { display: block; }
 <div id="load-area">
   <p>
     Run <code style="color:#34d399;background:#052e16;padding:2px 6px;border-radius:4px">python crawler_with_tree.py</code>
-    first, then load the generated <code style="color:#fbbf24;background:#1c1003;padding:2px 6px;border-radius:4px">crawl_tree.json</code> below.
+    first, then load <code style="color:#fbbf24;background:#1c1003;padding:2px 6px;border-radius:4px">crawl_tree.json</code>.
   </p>
   <label class="file-btn">
     📂 Load crawl_tree.json
@@ -230,44 +121,40 @@ svg { display: block; }
 
 <script>
 const COLORS = {
-  ok:      { fill: '#dcfce7', stroke: '#22c55e', text: '#166534' },
-  error:   { fill: '#fee2e2', stroke: '#ef4444', text: '#7f1d1d' },
-  edge:    '#cbd5f5',
-  edgeActive: '#94a3b8',
+  ok: {
+    fill: '#0f172a',          // dark inner
+    stroke: '#22c55e',        // neon green border
+    text: '#4ade80'           // bright green text
+  },
+  error: {
+    fill: '#1e293b',
+    stroke: '#ef4444',
+    text: '#f87171'
+  },
+  edgeActive: '#64748b'
 };
 
-const NODE_R  = 24;
-const H_GAP   = 60;
-const V_GAP   = 110;
+const NODE_R = 24, H_GAP = 60, V_GAP = 110;
 
-// ── Layout ─────────────────────────────────────────────
 function layout(node, depth = 0, xOffset = 0) {
   const children = node.children || [];
-
   if (children.length === 0) {
     node._x = xOffset + NODE_R;
     node._y = depth * V_GAP + NODE_R + 20;
     return NODE_R * 2;
   }
-
-  let x = xOffset;
-  let totalW = 0;
+  let x = xOffset, totalW = 0;
   for (const child of children) {
     const w = layout(child, depth + 1, x);
     x += w + H_GAP;
     totalW += w + H_GAP;
   }
   totalW -= H_GAP;
-
-  const firstX = children[0]._x;
-  const lastX  = children[children.length - 1]._x;
-  node._x = (firstX + lastX) / 2;
+  node._x = (children[0]._x + children[children.length - 1]._x) / 2;
   node._y = depth * V_GAP + NODE_R + 20;
-
   return Math.max(totalW, NODE_R * 2);
 }
 
-// ── Flatten ─────────────────────────────────────────────
 function flatten(node, out = []) {
   out.push(node);
   for (const c of node.children || []) flatten(c, out);
@@ -286,7 +173,6 @@ function shortUrl(url) {
   return url.replace('https://www.tensorflow.org', '') || '/';
 }
 
-// ── Render ─────────────────────────────────────────────
 function render(tree) {
   const totalW = layout(tree) + 80;
   const allNodes = flatten(tree);
@@ -294,23 +180,6 @@ function render(tree) {
   const maxDepth = Math.max(...allNodes.map(n => n.depth));
   const totalH = (maxDepth + 1) * V_GAP + 80;
 
-  // Stats
-  const statsEl = document.getElementById('stats');
-  statsEl.style.display = 'flex';
-  const errCount = allNodes.filter(n => n.status === 'error').length;
-  statsEl.innerHTML = [
-    ['Total pages', allNodes.length, '#60a5fa'],
-    ['Max depth',   maxDepth,        '#818cf8'],
-    ['Branch factor', Math.max(...allNodes.map(n => (n.children||[]).length)), '#34d399'],
-    ['Errors',      errCount,        errCount > 0 ? '#f87171' : '#475569'],
-  ].map(([label, val, color]) => `
-    <div class="stat">
-      <div class="stat-label">${label}</div>
-      <div class="stat-val" style="color:${color}">${val}</div>
-    </div>
-  `).join('');
-
-  // SVG
   const wrap = document.getElementById('canvas-wrap');
   wrap.style.display = 'block';
 
@@ -318,18 +187,6 @@ function render(tree) {
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('width', totalW);
   svg.setAttribute('height', totalH);
-
-  // depth labels on left
-  for (let d = 0; d <= maxDepth; d++) {
-    const t = document.createElementNS(NS, 'text');
-    t.setAttribute('x', 8);
-    t.setAttribute('y', d * V_GAP + NODE_R + 20 + 5);
-    t.setAttribute('fill', '#1e3a5f');
-    t.setAttribute('font-size', 10);
-    t.setAttribute('font-family', 'monospace');
-    t.textContent = `d${d}`;
-    svg.appendChild(t);
-  }
 
   // Edges
   for (const e of edges) {
@@ -346,27 +203,17 @@ function render(tree) {
 
   const tip = document.getElementById('tip');
 
-  // Nodes
   for (const node of allNodes) {
     const cx = node._x + 40;
     const cy = node._y;
     const col = COLORS[node.status] || COLORS.ok;
 
     const g = document.createElementNS(NS, 'g');
+    g.style.cursor = 'pointer'; // clickable group
 
-    // Glow ring
-    const ring = document.createElementNS(NS, 'circle');
-    ring.setAttribute('cx', cx); ring.setAttribute('cy', cy);
-    ring.setAttribute('r', NODE_R + 5);
-    ring.setAttribute('fill', 'none');
-    ring.setAttribute('stroke', col.stroke);
-    ring.setAttribute('stroke-width', .5);
-    ring.setAttribute('stroke-opacity', .25);
-    g.appendChild(ring);
-
-    // Main circle
     const circle = document.createElementNS(NS, 'circle');
-    circle.setAttribute('cx', cx); circle.setAttribute('cy', cy);
+    circle.setAttribute('cx', cx);
+    circle.setAttribute('cy', cy);
     circle.setAttribute('r', NODE_R);
     circle.setAttribute('fill', col.fill);
     circle.setAttribute('stroke', col.stroke);
@@ -374,57 +221,81 @@ function render(tree) {
     circle.classList.add('node-circle');
     g.appendChild(circle);
 
-    // depth label
-    const dt = document.createElementNS(NS, 'text');
-    dt.setAttribute('x', cx); dt.setAttribute('y', cy - 5);
-    dt.setAttribute('text-anchor', 'middle');
-    dt.setAttribute('dominant-baseline', 'central');
-    dt.setAttribute('fill', col.text);
-    dt.setAttribute('font-size', 9);
-    dt.setAttribute('font-family', 'monospace');
-    dt.setAttribute('font-weight', '700');
-    dt.textContent = `d${node.depth}`;
-    g.appendChild(dt);
+    // Depth label (TOP)
+const dt = document.createElementNS(NS, 'text');
+dt.setAttribute('x', cx);
+dt.setAttribute('y', cy - 6);
+dt.setAttribute('text-anchor', 'middle');
+dt.setAttribute('fill', '#e2e8f0'); // bright for dark bg
+dt.setAttribute('font-size', 9);
+dt.setAttribute('font-family', 'monospace');
+dt.setAttribute('font-weight', '700');
+dt.textContent = `d${node.depth}`;
+g.appendChild(dt);
 
-    // child count
-    const cc = document.createElementNS(NS, 'text');
-    cc.setAttribute('x', cx); cc.setAttribute('y', cy + 8);
-    cc.setAttribute('text-anchor', 'middle');
-    cc.setAttribute('dominant-baseline', 'central');
-    cc.setAttribute('fill', col.stroke);
-    cc.setAttribute('font-size', 8);
-    cc.setAttribute('font-family', 'monospace');
-    cc.textContent = `↓${(node.children||[]).length}`;
-    g.appendChild(cc);
+// Children count (BOTTOM INSIDE)
+const cc = document.createElementNS(NS, 'text');
+cc.setAttribute('x', cx);
+cc.setAttribute('y', cy + 10);
+cc.setAttribute('text-anchor', 'middle');
+cc.setAttribute('fill', '#93c5fd');
+cc.setAttribute('font-size', 8);
+cc.setAttribute('font-family', 'monospace');
+cc.textContent = `↓${(node.children||[]).length}`;
+g.appendChild(cc);
 
-    // URL label below node
-    const label = shortUrl(node.url);
-    const parts = label.split('/').filter(Boolean);
-    const shortLabel = parts[parts.length - 1] || 'root';
-    const lt = document.createElementNS(NS, 'text');
-    lt.setAttribute('x', cx); lt.setAttribute('y', cy + NODE_R + 14);
-    lt.setAttribute('text-anchor', 'middle');
-    lt.setAttribute('fill', '#334e68');
-    lt.setAttribute('font-size', 9);
-    lt.setAttribute('font-family', 'monospace');
-    lt.textContent = shortLabel.length > 18 ? shortLabel.slice(0, 18) + '…' : shortLabel;
-    g.appendChild(lt);
+// URL label (BELOW NODE)
+const label = shortUrl(node.url);
+const parts = label.split('/').filter(Boolean);
+const shortLabel = parts[parts.length - 1] || 'root';
 
-    // Tooltip
+const lt = document.createElementNS(NS, 'text');
+lt.setAttribute('x', cx);
+lt.setAttribute('y', cy + NODE_R + 14);
+lt.setAttribute('text-anchor', 'middle');
+lt.setAttribute('fill', '#cbd5f5'); // visible on dark bg
+lt.setAttribute('font-size', 9);
+lt.setAttribute('font-family', 'monospace');
+lt.textContent =
+  shortLabel.length > 18 ? shortLabel.slice(0, 18) + '…' : shortLabel;
+
+g.appendChild(lt);
+
+    // CLICK → open URL
+    g.addEventListener('click', () => {
+      if (node.url) window.open(node.url, '_blank');
+    });
+
+    // Hover effect
     g.addEventListener('mouseenter', (e) => {
+      circle.setAttribute('stroke-width', 3);
+      circle.style.filter = 'brightness(1.2)';
+
       tip.style.display = 'block';
       tip.innerHTML = `
         <div class="tip-url">${node.url}</div>
-        <div>depth: ${node.depth} &nbsp;|&nbsp; children: ${(node.children||[]).length} &nbsp;|&nbsp; status: ${node.status}</div>
-        ${node.sample ? `<div class="tip-sample" style="margin-top:6px">${node.sample.slice(0, 150)}…</div>` : ''}
-        ${node.error  ? `<div style="color:#f87171;margin-top:4px">Error: ${node.error}</div>` : ''}
+        <div>
+          depth: ${node.depth} |
+          children: ${(node.children||[]).length} |
+          status: ${node.status}
+        </div>
+        <div style="margin-top:6px">
+          <a href="${node.url}" target="_blank">Open page ↗</a>
+        </div>
+        ${node.sample ? `<div style="margin-top:6px;color:#64748b">${node.sample.slice(0,150)}…</div>` : ''}
       `;
     });
+
     g.addEventListener('mousemove', (e) => {
       tip.style.left = (e.clientX + 14) + 'px';
       tip.style.top  = (e.clientY - 10) + 'px';
     });
-    g.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+
+    g.addEventListener('mouseleave', () => {
+      circle.setAttribute('stroke-width', 1.5);
+      circle.style.filter = 'none';
+      tip.style.display = 'none';
+    });
 
     svg.appendChild(g);
   }
@@ -433,19 +304,14 @@ function render(tree) {
   wrap.appendChild(svg);
 }
 
-// ── File input ─────────────────────────────────────────
 document.getElementById('file-input').addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
   reader.onload = (ev) => {
-    try {
-      const tree = JSON.parse(ev.target.result);
-      document.getElementById('load-area').style.display = 'none';
-      render(tree);
-    } catch(err) {
-      alert('Invalid JSON: ' + err.message);
-    }
+    const tree = JSON.parse(ev.target.result);
+    document.getElementById('load-area').style.display = 'none';
+    render(tree);
   };
   reader.readAsText(file);
 });

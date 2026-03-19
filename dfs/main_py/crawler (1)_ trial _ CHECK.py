@@ -79,7 +79,10 @@ def crawl(
     filter_chain = FilterChain(active_filters, debug=debug)
 
     # ── crawl state ───────────────────────────────────────────────────────────
-    visited    = set()   # canonical URLs already fetched
+    visited  = set()   # URLs actually fetched — permanent, never removed
+    reserved = set()   # URLs claimed by a parent — temporary reservation
+                       # prevents sibling subtrees from stealing a parent's
+                       # chosen children before that parent recurses into them
     page_count = [0]
     results    = []
 
@@ -106,22 +109,16 @@ def crawl(
 
     # ── recursive worker ──────────────────────────────────────────────────────
     #
-    # Design:
-    #   - visited is the only global dedup set
-    #   - page_count increments only after a real unique fetch
-    #   - candidates are oversampled (branching_factor * 3) so that
-    #     if some turn out to be already-visited by the time we recurse,
-    #     we still have backups to fill the branching budget
-    #   - redirect canonical URL is resolved before registering visited,
-    #     so /tutorials/keras and /tutorials/keras/classification
-    #     never both consume a page slot
+    # visited  — URLs actually fetched (permanent, never removed)
+    # reserved — URLs claimed by a parent node (temporary)
+    #            prevents sibling subtrees from stealing a parent's children
+    #            removed when the child starts its own fetch
 
     def _dfs_crawl(url, depth):
 
         url = url.rstrip("/")
 
-        # ── pre-fetch guards ───────────────────────────────────────────────
-        if url in visited:
+        if url in visited or url in reserved:
             return
         if max_depth is not None and depth > max_depth:
             return
@@ -139,33 +136,32 @@ def crawl(
             response           = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=5)
             result.status_code = response.status_code
 
-            # ── resolve canonical URL after redirect ───────────────────────
             canonical = response.url.rstrip("/")
             if canonical != url:
-                print(f"{indent}Redirected → {canonical}")
-                if canonical in visited:
-                    print(f"{indent}Skipped — canonical already visited")
-                    return     # free — page_count not incremented yet
+                print(f"{indent}Redirected to: {canonical}")
+                if canonical in visited or canonical in reserved:
+                    print(f"{indent}Skipped — canonical already visited/reserved")
+                    return
 
-            # ── register as visited NOW (after redirect resolution) ────────
             visited.add(url)
             visited.add(canonical)
+            reserved.discard(url)
+            reserved.discard(canonical)
             page_count[0] += 1
             result.url = canonical
 
             if tracker:
                 tracker.on_visit(canonical, depth)
 
-            # ── content-type gate ──────────────────────────────────────────
             if not filter_chain.allow_response(url, response):
-                result.error = f"Content-Type blocked: {response.headers.get('Content-Type', '?')}"
+                ct = response.headers.get("Content-Type", "?")
+                result.error = f"Content-Type blocked: {ct}"
                 print(f"{indent}Skipped — {result.error}")
                 if tracker:
                     tracker.on_error(canonical, result.error)
                 results.append(result)
                 return
 
-            # ── parse ──────────────────────────────────────────────────────
             raw_soup = BeautifulSoup(response.text, "html.parser")
             soup     = BeautifulSoup(response.text, "html.parser")
 
@@ -200,7 +196,6 @@ def crawl(
                 or soup
             )
 
-            # ── word count gate ────────────────────────────────────────────
             text = " ".join(content.get_text(" ", strip=True).split())
             if word_count_threshold is not None:
                 wc = len(text.split())
@@ -220,24 +215,12 @@ def crawl(
             manager.extract_all(result, content, raw_soup, response)
             results.append(result)
 
-            # ── collect and RESERVE children ───────────────────────────────
-            #
-            # Collect exactly branching_factor children from this page's
-            # content links. Reserve all of them in visited BEFORE recursing
-            # so sibling subtrees cannot steal them.
-            #
-            # Redirect collisions (e.g. /keras → /keras/classification) are
-            # handled inside _dfs_crawl after the actual GET — both the
-            # original and canonical URLs get added to visited there.
-            # The visited.discard before each recursion temporarily opens
-            # the slot so _dfs_crawl can process it normally.
-            #
-            limit          = branching_factor if branching_factor else None
-            children       = []
-            seen_hrefs     = set()
-            dropped_filt   = 0
-            dropped_score  = 0
-            dropped_vis    = 0
+            limit         = branching_factor if branching_factor else None
+            children      = []
+            seen_hrefs    = set()
+            dropped_filt  = 0
+            dropped_score = 0
+            dropped_vis   = 0
 
             for tag in content.find_all("a", href=True):
                 clean_url = normalize_and_filter_url(canonical, tag["href"])
@@ -246,7 +229,7 @@ def crawl(
                     continue
                 if clean_url in seen_hrefs:
                     continue
-                if clean_url == canonical or clean_url in visited:
+                if clean_url == canonical or clean_url in visited or clean_url in reserved:
                     dropped_vis += 1
                     continue
                 if score_threshold is not None:
@@ -261,23 +244,22 @@ def crawl(
                 if limit and len(children) >= limit:
                     break
 
-            # reserve all children before any recursion
+            # reserve all children before recursing
             for child in children:
-                visited.add(child)
+                reserved.add(child)
 
-            print(f"{indent}  children: {len(children)} reserved | "
-                  f"already-visited: {dropped_vis} | "
+            print(f"{indent}  children: {len(children)} | "
+                  f"skipped: {dropped_vis} | "
                   f"score-filtered: {dropped_score} | "
                   f"url-filtered: {dropped_filt}")
             for child in children:
                 print(f"{indent}  -> {child}")
 
-            # recurse — discard reservation so _dfs_crawl can re-register
-            # properly after redirect resolution and actual fetch
+            # recurse — remove reservation so child can fetch itself
             for child in children:
                 if max_pages and page_count[0] >= max_pages:
                     break
-                visited.discard(child)
+                reserved.discard(child)
                 _dfs_crawl(child, depth + 1)
 
         except Exception as e:
@@ -286,7 +268,6 @@ def crawl(
             if tracker:
                 tracker.on_error(url, str(e))
             results.append(result)
-
     # ── kick off ──────────────────────────────────────────────────────────────
     _dfs_crawl(start_url, depth=0)
     successful = len([r for r in results if not r.error])

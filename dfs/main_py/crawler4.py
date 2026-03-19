@@ -222,33 +222,47 @@ def crawl(
 
             # ── collect and RESERVE children ───────────────────────────────
             #
-            # Collect exactly branching_factor children from this page's
-            # content links. Reserve all of them in visited BEFORE recursing
-            # so sibling subtrees cannot steal them.
+            # Steps:
+            #  1. Collect candidate URLs from this page's content
+            #  2. Resolve redirects NOW (HEAD request) to get canonical URLs
+            #     so /tutorials/keras and /tutorials/keras/classification
+            #     are treated as the same URL before any reservation
+            #  3. Reserve exactly branching_factor canonical URLs in visited
+            #  4. Recurse — subtrees see reservations and cannot steal them
+            #  5. Before each recursion, temporarily discard the reservation
+            #     so _dfs_crawl can re-register it properly after fetch
             #
-            # Redirect collisions (e.g. /keras → /keras/classification) are
-            # handled inside _dfs_crawl after the actual GET — both the
-            # original and canonical URLs get added to visited there.
-            # The visited.discard before each recursion temporarily opens
-            # the slot so _dfs_crawl can process it normally.
-            #
-            limit          = branching_factor if branching_factor else None
-            children       = []
-            seen_hrefs     = set()
-            dropped_filt   = 0
-            dropped_score  = 0
-            dropped_vis    = 0
+            limit         = branching_factor if branching_factor else None
+            children      = []   # list of (original_url, canonical_url)
+            seen_canonical = set()
+            dropped_filt  = 0
+            dropped_score = 0
+            dropped_vis   = 0
 
             for tag in content.find_all("a", href=True):
                 clean_url = normalize_and_filter_url(canonical, tag["href"])
                 if not clean_url:
                     dropped_filt += 1
                     continue
-                if clean_url in seen_hrefs:
+                if clean_url == canonical:
                     continue
-                if clean_url == canonical or clean_url in visited:
+
+                # resolve redirect to get true canonical URL
+                try:
+                    head = requests.head(
+                        clean_url,
+                        headers={"User-Agent": "Mozilla/5.0"},
+                        allow_redirects=True,
+                        timeout=3,
+                    )
+                    true_canonical = head.url.rstrip("/")
+                except Exception:
+                    true_canonical = clean_url
+
+                if true_canonical in seen_canonical or true_canonical in visited:
                     dropped_vis += 1
                     continue
+
                 if score_threshold is not None:
                     s = score_link(clean_url, tag.get_text())
                     if s < score_threshold:
@@ -256,29 +270,32 @@ def crawl(
                             print(f"{indent}  [score={s:.2f}] dropped: {clean_url}")
                         dropped_score += 1
                         continue
-                seen_hrefs.add(clean_url)
-                children.append(clean_url)
+
+                seen_canonical.add(true_canonical)
+                children.append((clean_url, true_canonical))
+
                 if limit and len(children) >= limit:
                     break
 
-            # reserve all children before any recursion
-            for child in children:
-                visited.add(child)
+            # reserve all canonical URLs before any recursion
+            for _, canon in children:
+                visited.add(canon)
 
             print(f"{indent}  children: {len(children)} reserved | "
                   f"already-visited: {dropped_vis} | "
                   f"score-filtered: {dropped_score} | "
                   f"url-filtered: {dropped_filt}")
-            for child in children:
-                print(f"{indent}  -> {child}")
+            for orig, canon in children:
+                print(f"{indent}  -> {orig}" + (f" → {canon}" if canon != orig else ""))
 
-            # recurse — discard reservation so _dfs_crawl can re-register
-            # properly after redirect resolution and actual fetch
-            for child in children:
+            # recurse — discard reservation temporarily so _dfs_crawl
+            # can process each child normally through its own redirect logic
+            for orig, canon in children:
                 if max_pages and page_count[0] >= max_pages:
                     break
-                visited.discard(child)
-                _dfs_crawl(child, depth + 1)
+                visited.discard(orig)
+                visited.discard(canon)
+                _dfs_crawl(orig, depth + 1)
 
         except Exception as e:
             result.error = str(e)

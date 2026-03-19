@@ -220,34 +220,22 @@ def crawl(
             manager.extract_all(result, content, raw_soup, response)
             results.append(result)
 
-            # ── collect and RESERVE children ───────────────────────────────
-            #
-            # Collect exactly branching_factor children from this page's
-            # content links. Reserve all of them in visited BEFORE recursing
-            # so sibling subtrees cannot steal them.
-            #
-            # Redirect collisions (e.g. /keras → /keras/classification) are
-            # handled inside _dfs_crawl after the actual GET — both the
-            # original and canonical URLs get added to visited there.
-            # The visited.discard before each recursion temporarily opens
-            # the slot so _dfs_crawl can process it normally.
-            #
-            limit          = branching_factor if branching_factor else None
-            children       = []
-            seen_hrefs     = set()
-            dropped_filt   = 0
-            dropped_score  = 0
-            dropped_vis    = 0
+            # ── collect candidates ─────────────────────────────────────────
+            # Oversample by branching_factor * 3 so that even if some
+            # candidates are already visited by the time we recurse into
+            # them, we have backups. visited check in the recursive call
+            # handles dedup for free — no wasted page_count.
+            limit      = (branching_factor * 3) if branching_factor else None
+            candidates = []
+            seen_hrefs = set()
+            dropped_filt  = 0
+            dropped_score = 0
 
             for tag in content.find_all("a", href=True):
                 clean_url = normalize_and_filter_url(canonical, tag["href"])
-                if not clean_url:
-                    dropped_filt += 1
-                    continue
-                if clean_url in seen_hrefs:
-                    continue
-                if clean_url == canonical or clean_url in visited:
-                    dropped_vis += 1
+                if not clean_url or clean_url in seen_hrefs:
+                    if not clean_url:
+                        dropped_filt += 1
                     continue
                 if score_threshold is not None:
                     s = score_link(clean_url, tag.get_text())
@@ -257,28 +245,41 @@ def crawl(
                         dropped_score += 1
                         continue
                 seen_hrefs.add(clean_url)
-                children.append(clean_url)
-                if limit and len(children) >= limit:
+                candidates.append(clean_url)
+                if limit and len(candidates) >= limit:
                     break
 
-            # reserve all children before any recursion
-            for child in children:
-                visited.add(child)
-
-            print(f"{indent}  children: {len(children)} reserved | "
-                  f"already-visited: {dropped_vis} | "
+            print(f"{indent}  candidates: {len(candidates)} | "
                   f"score-filtered: {dropped_score} | "
                   f"url-filtered: {dropped_filt}")
-            for child in children:
-                print(f"{indent}  -> {child}")
 
-            # recurse — discard reservation so _dfs_crawl can re-register
-            # properly after redirect resolution and actual fetch
-            for child in children:
+            for cl in candidates:
+                print(f"{indent}  -> {cl}")
+
+            # ── recurse — branching_factor enforced by real visit count ────
+            # Each recursive call checks visited at the top. We count how
+            # many actually get visited at this depth and stop at branching_factor.
+            real_children = [0]
+
+            def _guarded_recurse(child_url):
+                if branching_factor and real_children[0] >= branching_factor:
+                    return
                 if max_pages and page_count[0] >= max_pages:
-                    break
-                visited.discard(child)
-                _dfs_crawl(child, depth + 1)
+                    return
+                before = page_count[0]
+                _dfs_crawl(child_url, depth + 1)
+                if page_count[0] > before:
+                    real_children[0] += 1
+
+            for cl in candidates:
+                _guarded_recurse(cl)
+
+        except Exception as e:
+            result.error = str(e)
+            print(f"{indent}Error: {e}")
+            if tracker:
+                tracker.on_error(url, str(e))
+            results.append(result)
 
         except Exception as e:
             result.error = str(e)

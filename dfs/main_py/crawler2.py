@@ -79,7 +79,8 @@ def crawl(
     filter_chain = FilterChain(active_filters, debug=debug)
 
     # ── crawl state ───────────────────────────────────────────────────────────
-    visited    = set()   # canonical URLs already fetched
+    visited    = set()
+    queued     = set()   # URLs already scheduled for a future visit
     page_count = [0]
     results    = []
 
@@ -105,25 +106,14 @@ def crawl(
         return round(min(score, 1.0), 3)
 
     # ── recursive worker ──────────────────────────────────────────────────────
-    #
-    # Design:
-    #   - visited is the only global dedup set
-    #   - page_count increments only after a real unique fetch
-    #   - candidates are oversampled (branching_factor * 3) so that
-    #     if some turn out to be already-visited by the time we recurse,
-    #     we still have backups to fill the branching budget
-    #   - redirect canonical URL is resolved before registering visited,
-    #     so /tutorials/keras and /tutorials/keras/classification
-    #     never both consume a page slot
 
     def _dfs_crawl(url, depth):
 
         url = url.rstrip("/")
 
-        # ── pre-fetch guards ───────────────────────────────────────────────
-        if url in visited:
-            return
         if max_depth is not None and depth > max_depth:
+            return
+        if url in visited:
             return
         if max_pages is not None and page_count[0] >= max_pages:
             print(f"[max_pages={max_pages} reached — stopping]")
@@ -133,47 +123,72 @@ def crawl(
         page_num = f"[{page_count[0]+1}" + (f"/{max_pages}]" if max_pages else "]")
         print(f"\n{indent}Visiting {page_num}: {url}")
 
+        # Don't add to visited yet — wait until we know the canonical URL
+        # after any redirect. This prevents double-counting redirect chains.
+
         result = PageResult(url=url, depth=depth, status_code=0)
 
         try:
             response           = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=5)
             result.status_code = response.status_code
 
-            # ── resolve canonical URL after redirect ───────────────────────
-            canonical = response.url.rstrip("/")
-            if canonical != url:
-                print(f"{indent}Redirected → {canonical}")
-                if canonical in visited:
-                    print(f"{indent}Skipped — canonical already visited")
-                    return     # free — page_count not incremented yet
+            # ── redirect detection ─────────────────────────────────────────
+            # requests follows redirects automatically.
+            # Resolve the canonical URL, then register it as visited.
+            # This ensures /tutorials/keras and /tutorials/keras/classification
+            # (which resolve to the same page) only consume one page slot.
+            final_url = response.url.rstrip("/")
+            canonical = final_url if final_url != url else url
 
-            # ── register as visited NOW (after redirect resolution) ────────
-            visited.add(url)
+            if canonical in visited:
+                # Already crawled via a different path — don't count this visit
+                print(f"{indent}Skipped — already visited as: {canonical}")
+                queued.discard(canonical)
+                return
+
+            # Register canonical URL (and original if different) as visited
             visited.add(canonical)
+            visited.add(url)
+            queued.discard(canonical)
+            queued.discard(url)
             page_count[0] += 1
             result.url = canonical
+
+            if canonical != url:
+                print(f"{indent}Redirected → {canonical}")
 
             if tracker:
                 tracker.on_visit(canonical, depth)
 
-            # ── content-type gate ──────────────────────────────────────────
+            # stage 2: content-type gate (uses real response, no extra request)
             if not filter_chain.allow_response(url, response):
                 result.error = f"Content-Type blocked: {response.headers.get('Content-Type', '?')}"
                 print(f"{indent}Skipped — {result.error}")
                 if tracker:
-                    tracker.on_error(canonical, result.error)
+                    tracker.on_error(url, result.error)
                 results.append(result)
                 return
 
-            # ── parse ──────────────────────────────────────────────────────
+            # ── parse — two soups, parsed once ────────────────────────────
             raw_soup = BeautifulSoup(response.text, "html.parser")
             soup     = BeautifulSoup(response.text, "html.parser")
 
-            NOISE_TAGS = ["script", "style", "nav", "header", "footer",
-                          "aside", "form", "iframe", "noscript"]
+            # Pass 1: standard semantic noise tags
+            NOISE_TAGS = [
+                "script", "style",
+                "nav", "header", "footer", "aside",
+                "form", "iframe", "noscript",
+            ]
             for tag in soup(NOISE_TAGS):
                 tag.decompose()
 
+            # Pass 2: custom elements and class/id patterns
+            # Catches web components like <devsite-header>, <site-nav>
+            # and class names like "cookie-banner", "sidebar", "toc"
+            #
+            # IMPORTANT: snapshot with list() first — decomposing a parent
+            # also destroys its children in the tree, so iterating live
+            # causes tag.name / tag.get() to return None on already-dead nodes.
             NOISE_PATTERNS = [
                 "header", "footer", "nav", "cookie", "banner",
                 "breadcrumb", "sidebar", "toc", "toolbar", "menu",
@@ -182,7 +197,7 @@ def crawl(
                 "devsite-thumb", "devsite-page-rating", "devsite-bookmark",
             ]
             for tag in list(soup.find_all(True)):
-                if tag.parent is None:
+                if tag.parent is None:      # already decomposed as child of earlier tag
                     continue
                 combined = " ".join([
                     tag.name or "",
@@ -192,6 +207,8 @@ def crawl(
                 if any(p in combined for p in NOISE_PATTERNS):
                     tag.decompose()
 
+            # Content scoping: prefer the most specific content container
+            # Priority: <main> → <article> → role=main → <body> → full soup
             content = (
                 soup.find("main")
                 or soup.find("article")
@@ -208,77 +225,61 @@ def crawl(
                     result.error = f"word_count={wc} < threshold={word_count_threshold}"
                     print(f"{indent}Skipped — {result.error}")
                     if tracker:
-                        tracker.on_error(canonical, result.error)
+                        tracker.on_error(url, result.error)
                     results.append(result)
                     return
 
             print(f"{indent}({len(text.split())} words): {text[:200]}...")
 
             if tracker:
-                tracker.on_success(canonical, text)
+                tracker.on_success(url, text)
 
+            # ── extract all requested outputs ──────────────────────────────
+            # pass content (scoped) as the clean soup so all extractors
+            # that use needs_clean=True operate on main-content only
             manager.extract_all(result, content, raw_soup, response)
             results.append(result)
 
-            # ── collect and RESERVE children ───────────────────────────────
-            #
-            # Collect exactly branching_factor children from this page's
-            # content links. Reserve all of them in visited BEFORE recursing
-            # so sibling subtrees cannot steal them.
-            #
-            # Redirect collisions (e.g. /keras → /keras/classification) are
-            # handled inside _dfs_crawl after the actual GET — both the
-            # original and canonical URLs get added to visited there.
-            # The visited.discard before each recursion temporarily opens
-            # the slot so _dfs_crawl can process it normally.
-            #
-            limit          = branching_factor if branching_factor else None
-            children       = []
-            seen_hrefs     = set()
-            dropped_filt   = 0
-            dropped_score  = 0
-            dropped_vis    = 0
+            # ── collect next links ─────────────────────────────────────────
+            clean_links  = []
+            seen_links   = set()
+            dropped_vis  = 0   # already visited/queued
+            dropped_filt = 0   # failed url filter
+            dropped_score= 0   # failed score threshold
 
             for tag in content.find_all("a", href=True):
-                clean_url = normalize_and_filter_url(canonical, tag["href"])
+                clean_url = normalize_and_filter_url(url, tag["href"])
                 if not clean_url:
                     dropped_filt += 1
                     continue
-                if clean_url in seen_hrefs:
+                if clean_url in seen_links:
                     continue
-                if clean_url == canonical or clean_url in visited:
+                if clean_url in visited or clean_url in queued:
                     dropped_vis += 1
                     continue
                 if score_threshold is not None:
                     s = score_link(clean_url, tag.get_text())
                     if s < score_threshold:
                         if debug:
-                            print(f"{indent}  [score={s:.2f}] dropped: {clean_url}")
+                            print(f"{indent}  [score={s:.2f} < {score_threshold}] dropped: {clean_url}")
                         dropped_score += 1
                         continue
-                seen_hrefs.add(clean_url)
-                children.append(clean_url)
-                if limit and len(children) >= limit:
+                seen_links.add(clean_url)
+                clean_links.append(clean_url)
+                queued.add(clean_url)
+                if branching_factor is not None and len(clean_links) >= branching_factor:
                     break
 
-            # reserve all children before any recursion
-            for child in children:
-                visited.add(child)
+            print(f"{indent}  links: {len(clean_links)} queued | "
+                  f"{dropped_vis} already seen | "
+                  f"{dropped_score} score-filtered | "
+                  f"{dropped_filt} url-filtered")
 
-            print(f"{indent}  children: {len(children)} reserved | "
-                  f"already-visited: {dropped_vis} | "
-                  f"score-filtered: {dropped_score} | "
-                  f"url-filtered: {dropped_filt}")
-            for child in children:
-                print(f"{indent}  -> {child}")
+            for cl in clean_links:
+                print(f"{indent}  -> {cl}")
 
-            # recurse — discard reservation so _dfs_crawl can re-register
-            # properly after redirect resolution and actual fetch
-            for child in children:
-                if max_pages and page_count[0] >= max_pages:
-                    break
-                visited.discard(child)
-                _dfs_crawl(child, depth + 1)
+            for cl in clean_links:
+                _dfs_crawl(cl, depth + 1)
 
         except Exception as e:
             result.error = str(e)

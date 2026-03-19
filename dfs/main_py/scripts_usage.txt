@@ -1,0 +1,37 @@
+filter.py
+DomainFilter          → stay on same domain
+URLPatternFilter      → restrict to a path prefix
+ExternalLinkFilter    → block off-domain links
+SocialMediaFilter     → block social media domains
+ContentTypeFilter     → stage 1: extension check / stage 2: Content-Type header
+FilterChain           → runs all filters in sequence
+
+outputs.py
+CleanedHtmlOutput     → scoped noise-stripped HTML (content only)
+RawHtmlOutput         → response.text untouched
+MarkdownOutput        → cleaned HTML → Markdown via markdownify
+MetadataOutput        → title, og tags, word_count, canonical (from raw_soup head)
+LinksOutput           → all <a href> links with internal/external flag
+OutputManager         → orchestrates all extractors, populates PageResult
+PageResult            → dataclass holding all outputs for one page
+
+crawler.py
+builds FilterChain    → from filter params
+builds OutputManager  → from output_formats param
+_dfs_crawl()          → private recursive worker
+  - pass 1+2 noise removal + content scoping
+  - word_count gate
+  - score_threshold per link
+  - branching_factor / max_pages / max_depth guards
+returns list[PageResult]
+
+printer.py
+print_results()       → all or selected formats, all pages
+print_metadata()      → metadata only
+print_links()         → links only
+print_markdown()      → markdown only
+print_cleaned_html()  → cleaned html only
+print_raw_html()      → raw html only
+
+display_results.py
+to call the Crawler and other scripts.

@@ -1,0 +1,205 @@
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-sans); }
+.wrap { padding: 1rem 0; }
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 1.5rem;
+
+  border: 2px solid red;     /* 🔴 force visible */
+  border-radius: 8px;
+  padding: 6px;
+  background: #f5f5f5;
+  width: fit-content;
+}
+.tab { padding: 8px 20px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: transparent; color: var(--color-text-secondary); font-size: 14px; cursor: pointer; transition: all .15s; }
+.tab.active { background: var(--color-background-secondary); color: var(--color-text-primary); border-color: var(--color-border-primary); font-weight: 500; }
+.main { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.panel { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 1rem; }
+.panel-title { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 10px; letter-spacing: .03em; }
+svg.tree { width: 100%; height: 200px; }
+.ds-label { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 6px; }
+.ds-slots { display: flex; gap: 4px; flex-wrap: wrap; min-height: 36px; align-items: center;   display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  min-height: 36px;
+  align-items: center;
+
+  /* ADD THESE 👇 */
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  padding: 8px;
+  background: var(--color-background-secondary); }
+.slot { padding: 5px 10px; border-radius: var(--border-radius-md); font-size: 13px; font-weight: 500; border: 0.5px solid; transition: all .25s; }
+.slot.teal  { background: #E1F5EE; border-color: #0F6E56; color: #085041; }
+.slot.purple{ background: #EEEDFE; border-color: #534AB7; color: #3C3489; }
+.slot.active-slot { background: #FAEEDA; border-color: #854F0B; color: #633806; }
+.log-box { margin-top: 10px; background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 8px 10px; min-height: 48px; font-size: 13px; color: var(--color-text-secondary); line-height: 1.6; }
+.visited-row { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+.v-pill { padding: 3px 10px; border-radius: 99px; font-size: 12px; background: var(--color-background-secondary); border: 0.5px solid var(--color-border-secondary); color: var(--color-text-secondary); }
+.controls { display: flex; gap: 8px; margin-top: 14px; align-items: center; }
+.btn { padding: 7px 18px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: transparent; color: var(--color-text-primary); font-size: 13px; cursor: pointer; }
+.btn:hover { background: var(--color-background-secondary); }
+.btn:disabled { opacity: .35; cursor: default; }
+.btn.primary { background: var(--color-background-secondary); font-weight: 500; }
+.step-ctr { font-size: 12px; color: var(--color-text-secondary); margin-left: auto; }
+.pointer-label { font-size: 11px; }
+</style>
+
+<div class="wrap">
+  <div class="tabs">
+    <button class="tab active" onclick="switchMode('dfs')">DFS — stack</button>
+    <p> | </p>
+    <button class="tab" onclick="switchMode('bfs')">BFS — queue</button>
+  </div>
+
+  <div class="main">
+    <div class="panel">
+      <div class="panel-title" id="tree-title">Tree — DFS traversal</div>
+      <svg class="tree" id="tree-svg" viewBox="0 0 260 200"></svg>
+    </div>
+    <div class="panel">
+      <div class="panel-title" id="ds-title">Stack (LIFO — top is next)</div>
+      <div class="ds-label" id="ds-hint">Push children right-to-left so left child is processed first</div>
+      <div class="ds-slots" id="ds-slots"></div>
+      <div style="margin-top:10px;">
+        <div class="ds-label">Visited order</div>
+        <div class="visited-row" id="visited-row"></div>
+      </div>
+      <div class="log-box" id="log-box">Press "Next step" to begin.</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn primary" id="btn-prev" onclick="stepBack()" disabled>← Prev</button>
+    <button class="btn primary" id="btn-next" onclick="stepForward()">Next step →</button>
+    <button class="btn" onclick="reset()">Reset</button>
+    <span class="step-ctr" id="step-ctr">Step 0 / 7</span>
+  </div>
+</div>
+
+<script>
+const TREE = {
+  A: { children: ['B','C'], x:130, y:20 },
+  B: { children: ['D','E'], x:65,  y:80 },
+  C: { children: ['F'],    x:195, y:80 },
+  D: { children: [],        x:30,  y:155 },
+  E: { children: [],        x:100, y:155 },
+  F: { children: [],        x:195, y:155 },
+};
+const EDGES = [['A','B'],['A','C'],['B','D'],['B','E'],['C','F']];
+
+const DFS_STEPS = [
+  { action:'push',  node:'A', ds:['A'],           visited:[], current:null, log:'Push A (start node) onto stack.' },
+  { action:'pop',   node:'A', ds:['C','B'],        visited:['A'], current:'A', log:'Pop A → visit A. Push children C then B (right-to-left so B is on top).' },
+  { action:'pop',   node:'B', ds:['C','E','D'],    visited:['A','B'], current:'B', log:'Pop B → visit B. Push children E then D (D on top).' },
+  { action:'pop',   node:'D', ds:['C','E'],        visited:['A','B','D'], current:'D', log:'Pop D → visit D. No children.' },
+  { action:'pop',   node:'E', ds:['C'],            visited:['A','B','D','E'], current:'E', log:'Pop E → visit E. No children.' },
+  { action:'pop',   node:'C', ds:['F'],            visited:['A','B','D','E','C'], current:'C', log:'Pop C → visit C. Push child F.' },
+  { action:'pop',   node:'F', ds:[],               visited:['A','B','D','E','C','F'], current:'F', log:'Pop F → visit F. Stack empty — done! Order: A B D E C F' },
+];
+
+const BFS_STEPS = [
+  { action:'enq',  node:'A', ds:['A'],         visited:[], current:null, log:'Enqueue A (start node) into queue.' },
+  { action:'deq',  node:'A', ds:['B','C'],     visited:['A'], current:'A', log:'Dequeue A → visit A. Enqueue children B, C (left-to-right).' },
+  { action:'deq',  node:'B', ds:['C','D','E'], visited:['A','B'], current:'B', log:'Dequeue B → visit B. Enqueue children D, E.' },
+  { action:'deq',  node:'C', ds:['D','E','F'], visited:['A','B','C'], current:'C', log:'Dequeue C → visit C. Enqueue child F.' },
+  { action:'deq',  node:'D', ds:['E','F'],     visited:['A','B','C','D'], current:'D', log:'Dequeue D → visit D. No children.' },
+  { action:'deq',  node:'E', ds:['F'],         visited:['A','B','C','D','E'], current:'E', log:'Dequeue E → visit E. No children.' },
+  { action:'deq',  node:'F', ds:[],            visited:['A','B','C','D','E','F'], current:'F', log:'Dequeue F → visit F. Queue empty — done! Order: A B C D E F' },
+];
+
+let mode = 'dfs';
+let stepIdx = 0;
+
+function getSteps() { return mode === 'dfs' ? DFS_STEPS : BFS_STEPS; }
+
+function drawTree(current, visited) {
+  const svg = document.getElementById('tree-svg');
+  const tealFill = '#E1F5EE', tealStroke = '#0F6E56', tealText = '#085041';
+  const purpleFill = '#EEEDFE', purpleStroke = '#534AB7', purpleText = '#3C3489';
+  const amberFill = '#FAEEDA', amberStroke = '#854F0B', amberText = '#633806';
+  const grayFill = '#F1EFE8', grayStroke = '#5F5E5A', grayText = '#444441';
+  const R = 18;
+  let html = '';
+  EDGES.forEach(([p,c]) => {
+    const pn = TREE[p], cn = TREE[c];
+    html += `<line x1="${pn.x}" y1="${pn.y+R}" x2="${cn.x}" y2="${cn.y-R}" stroke="black" stroke-width="1"/>`;
+  });
+  Object.entries(TREE).forEach(([n, nd]) => {
+    let fill = grayFill, stroke = grayStroke, textC = grayText;
+    if (n === current) { fill = amberFill; stroke = amberStroke; textC = amberText; }
+    else if (visited.includes(n)) {
+      if (mode === 'dfs') { fill = tealFill; stroke = tealStroke; textC = tealText; }
+      else { fill = purpleFill; stroke = purpleStroke; textC = purpleText; }
+    }
+    html += `<circle cx="${nd.x}" cy="${nd.y}" r="${R}" fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>`;
+    html += `<text x="${nd.x}" y="${nd.y}" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="${textC}">${n}</text>`;
+  });
+  svg.innerHTML = html;
+}
+
+function renderStep() {
+  const steps = getSteps();
+  const s = stepIdx === 0 ? { ds:[], visited:[], current:null, log:'Press "Next step" to begin.' } : steps[stepIdx - 1];
+  const ds = s.ds || [];
+  const visited = s.visited || [];
+  const current = s.current || null;
+
+  drawTree(current, visited);
+
+  const isDFS = mode === 'dfs';
+  const slotClass = isDFS ? 'teal' : 'purple';
+  const slotsEl = document.getElementById('ds-slots');
+
+  if (ds.length === 0) {
+    slotsEl.innerHTML = `<span style="font-size:13px;color:var(--color-text-secondary)">${isDFS ? 'Stack empty' : 'Queue empty'}</span>`;
+  } else {
+    let html = '';
+    if (isDFS) {
+      html += `<span class="pointer-label" style="font-size:11px;color:var(--color-text-secondary)">top→</span>`;
+      ds.forEach((n, i) => {
+        const cls = i === 0 ? 'active-slot' : slotClass;
+        html += `<span class="slot ${cls}">${n}</span>`;
+      });
+    } else {
+      html += `<span class="pointer-label" style="font-size:11px;color:var(--color-text-secondary)">front→</span>`;
+      ds.forEach((n, i) => {
+        const cls = i === 0 ? 'active-slot' : slotClass;
+        html += `<span class="slot ${cls}">${n}</span>`;
+      });
+      html += `<span class="pointer-label" style="font-size:11px;color:var(--color-text-secondary)">←rear</span>`;
+    }
+    slotsEl.innerHTML = html;
+  }
+
+  const visitedEl = document.getElementById('visited-row');
+  visitedEl.innerHTML = visited.map(v => `<span class="v-pill">${v}</span>`).join('') || '<span style="font-size:12px;color:var(--color-text-secondary)">none yet</span>';
+
+  document.getElementById('log-box').textContent = s.log;
+  document.getElementById('step-ctr').textContent = `Step ${stepIdx} / ${steps.length}`;
+  document.getElementById('btn-prev').disabled = stepIdx === 0;
+  document.getElementById('btn-next').disabled = stepIdx === steps.length;
+}
+
+function stepForward() { if (stepIdx < getSteps().length) { stepIdx++; renderStep(); } }
+function stepBack()    { if (stepIdx > 0) { stepIdx--; renderStep(); } }
+function reset()       { stepIdx = 0; renderStep(); }
+
+function switchMode(m) {
+  mode = m;
+  stepIdx = 0;
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', (i===0&&m==='dfs')||(i===1&&m==='bfs')));
+  const isDFS = m === 'dfs';
+  document.getElementById('tree-title').textContent = `Tree — ${isDFS ? 'DFS' : 'BFS'} traversal`;
+  document.getElementById('ds-title').textContent = isDFS ? 'Stack (LIFO — top is next)' : 'Queue (FIFO — front is next)';
+  document.getElementById('ds-hint').textContent = isDFS
+    ? 'Push children right-to-left so left child is on top'
+    : 'Enqueue children left-to-right; dequeue from front';
+  renderStep();
+}
+
+renderStep();
+</script>
